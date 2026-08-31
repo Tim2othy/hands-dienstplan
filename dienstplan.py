@@ -27,6 +27,10 @@ BLOCK_WIDTH = 5       # columns per day
 ROWS_PER_PERSON = 3   # a person can have up to 3 shifts per day
 NAME_COL = 0  # column A
 
+# The sheet has the year typed as 2027 by mistake; day and month are correct.
+# Set to None to use whatever year the sheet says.
+FORCE_YEAR: int | None = 2026
+
 DATE_RE = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{2,4})")
 # "16:00 - 19:00 Uhr", "16:15-18:15", "16.00 – 19.00", "ab 16:00"
 TIME_RE = re.compile(r"(\d{1,2})[:.](\d{2})")
@@ -108,6 +112,8 @@ def parse_date(text: str) -> date | None:
     day, month, year = (int(part) for part in match.groups())
     if year < 100:
         year += 2000
+    if FORCE_YEAR is not None:
+        year = FORCE_YEAR
     try:
         return date(year, month, day)
     except ValueError:
