@@ -6,7 +6,7 @@ The sheet layout (as of 2026):
     starting at column C: C-G is day 1, H-L day 2, and so on.
   * Rows 2-4 are headers.
   * From row 5 downwards each person owns 3 consecutive rows (one per
-    possible shift on the same day).  The name is in column B of the
+    possible shift on the same day).  The name is in column A of the
     first of those rows.
   * The 5 columns of a day block are:
         Ort | Taetigkeit | Produktionsleitung | Dienstbeginn | Dauer in h
@@ -25,7 +25,7 @@ DATE_ROW = 0          # row 1, zero-based
 FIRST_DAY_COL = 2     # column C, zero-based
 BLOCK_WIDTH = 5       # columns per day
 ROWS_PER_PERSON = 3   # a person can have up to 3 shifts per day
-NAME_COL = 1          # column B
+NAME_COL = 0  # column A
 
 DATE_RE = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{2,4})")
 # "16:00 - 19:00 Uhr", "16:15-18:15", "16.00 – 19.00", "ab 16:00"
@@ -137,15 +137,14 @@ def parse_times(day: date, dienstbeginn: str, dauer: str) -> tuple[datetime, dat
 
 
 def find_name_row(rows: list[list[str]], name: str) -> int:
-    """Zero-based index of the row whose column B holds `name`."""
+    """Zero-based index of the row whose column A holds `name`."""
     wanted = name.strip().casefold()
     for index, _ in enumerate(rows):
         value = cell(rows, index, NAME_COL).casefold()
         if value and (value == wanted or wanted in value):
             return index
     raise LookupError(
-        f"Could not find {name!r} in column B of the sheet. "
-        "Check NAME in config.py."
+        f"Could not find {name!r} in column A of the sheet. " "Check NAME in config.py."
     )
 
 

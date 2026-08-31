@@ -6,7 +6,7 @@ import into Google Calendar.
 ## Usage
 
 1. Copy `config.example.py` to `config.py` and set `LINK` (including the
-   `#gid=` of the right tab) and `NAME` (as written in column B).
+   `#gid=` of the right tab) and `NAME` (as written in column A).
 2. Make sure the sheet is shared as "anyone with the link can view".
 3. Run it (no dependencies, standard library only):
 
