@@ -8,6 +8,7 @@ Configure LINK and NAME in config.py (gitignored), then run:
 from pathlib import Path
 
 import config
+from checks import check
 from dienstplan import extract_shifts, fetch_rows
 from icswriter import write_ics
 
@@ -18,19 +19,21 @@ def main() -> None:
     print(f"Fetching sheet for {config.NAME} ...")
     rows = fetch_rows(config.LINK)
 
-    shifts = extract_shifts(rows, config.NAME)
-    if not shifts:
-        print("No shifts found - is the name and the sheet tab (gid) correct?")
+    result = extract_shifts(rows, config.NAME)
+    write_ics(result.shifts, config.NAME, OUTPUT)
+    print(f"{len(result.shifts)} events written to {OUTPUT}")
+
+    problems = check(result, OUTPUT)
+    if problems:
+        print()
+        print("!" * 72)
+        print("!!!  WARNING: something is broken - the .ics is INCOMPLETE  !!!")
+        print("!" * 72)
+        for problem in problems:
+            print(f"  - {problem}")
+        print("!" * 72)
         return
 
-    for shift in shifts:
-        print(
-            f"  {shift.start:%d.%m.%Y %H:%M}-{shift.end:%H:%M}  "
-            f"{shift.ort} | {shift.taetigkeit} | {shift.produktionsleitung}"
-        )
-
-    write_ics(shifts, config.NAME, OUTPUT)
-    print(f"\n{len(shifts)} events written to {OUTPUT}")
     print(
         "Import it at https://calendar.google.com/calendar/r/settings/export "
         '("Import & export" -> "Import").'

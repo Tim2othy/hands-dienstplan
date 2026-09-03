@@ -27,6 +27,14 @@ BLOCK_WIDTH = 5       # columns per day
 ROWS_PER_PERSON = 3   # a person can have up to 3 shifts per day
 NAME_COL = 0  # column A
 
+COLUMN_NAMES = (
+    "Ort",
+    "Taetigkeit",
+    "Produktionsleitung",
+    "Dienstbeginn",
+    "Dauer in h",
+)
+
 # The sheet has the year typed as 2027 by mistake; day and month are correct.
 # Set to None to use whatever year the sheet says.
 FORCE_YEAR: int | None = 2026
@@ -59,6 +67,15 @@ class Shift:
         if self.produktionsleitung:
             lines.append(f"PL: {self.produktionsleitung}")
         return "\n".join(lines)
+
+
+@dataclass
+class ParseResult:
+    """Everything one run of the parser learned about the sheet."""
+
+    shifts: list[Shift]
+    filled: dict[str, int]   # how often each of the 5 columns was non-empty
+    problems: list[str]      # entries that were found but could not be exported
 
 
 # --------------------------------------------------------------------------
@@ -169,38 +186,45 @@ def find_name_row(rows: list[list[str]], name: str) -> int:
 # parsing
 # --------------------------------------------------------------------------
 
-def extract_shifts(rows: list[list[str]], name: str) -> list[Shift]:
+def extract_shifts(rows: list[list[str]], name: str) -> ParseResult:
     first_row = find_name_row(rows, name)
     person_rows = range(first_row, first_row + ROWS_PER_PERSON)
+    width = max((len(row) for row in rows), default=0)
 
     shifts: list[Shift] = []
+    problems: list[str] = []
+    filled = {column: 0 for column in COLUMN_NAMES}
+
     col = FIRST_DAY_COL
-    while col < max((len(row) for row in rows), default=0):
+    while col < width:
         day = parse_date(cell(rows, DATE_ROW, col))
-        if day is not None:
-            for row in person_rows:
-                ort = cell(rows, row, col)
-                taetigkeit = cell(rows, row, col + 1)
-                produktionsleitung = cell(rows, row, col + 2)
-                dienstbeginn = cell(rows, row, col + 3)
-                dauer = cell(rows, row, col + 4)
+        if day is None:
+            col += BLOCK_WIDTH
+            continue
 
-                if not any((ort, taetigkeit, dienstbeginn)):
-                    continue  # empty shift slot
+        for row in person_rows:
+            values = [cell(rows, row, col + offset) for offset in range(BLOCK_WIDTH)]
+            if not any(values):
+                continue  # empty shift slot
 
-                times = parse_times(day, dienstbeginn, dauer)
-                if times is None:
-                    print(
-                        f"  ! {day:%d.%m.%Y} {ort or taetigkeit!r}: no readable "
-                        f"time in {dienstbeginn!r} - skipped"
-                    )
-                    continue
+            for column, value in zip(COLUMN_NAMES, values):
+                if value:
+                    filled[column] += 1
 
-                start, end = times
-                shifts.append(
-                    Shift(day, ort, taetigkeit, produktionsleitung, start, end)
+            ort, taetigkeit, produktionsleitung, dienstbeginn, dauer = values
+            times = parse_times(day, dienstbeginn, dauer)
+            if times is None:
+                problems.append(
+                    f"{day:%d.%m.%Y} {ort or taetigkeit or '?'}: "
+                    f"no readable time in {dienstbeginn!r} - NOT exported"
                 )
+                continue
+
+            start, end = times
+            shifts.append(
+                Shift(day, ort, taetigkeit, produktionsleitung, start, end)
+            )
         col += BLOCK_WIDTH
 
     shifts.sort(key=lambda shift: shift.start)
-    return shifts
+    return ParseResult(shifts, filled, problems)
