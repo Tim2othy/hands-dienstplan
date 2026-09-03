@@ -32,8 +32,9 @@ NAME_COL = 0  # column A
 FORCE_YEAR: int | None = 2026
 
 DATE_RE = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{2,4})")
-# "16:00 - 19:00 Uhr", "16:15-18:15", "16.00 – 19.00", "ab 16:00"
-TIME_RE = re.compile(r"(\d{1,2})[:.](\d{2})")
+# "16:00 - 19:00 Uhr", "16:15-18:15", "16.00 - 19.00", "10 - 14 Uhr", "ab 16"
+# The minutes are optional, so a bare hour ("10 - 14 Uhr") is understood too.
+TIME_RE = re.compile(r"(?<![\d:.])(\d{1,2})(?:[:.](\d{2}))?(?![\d:.])")
 DURATION_RE = re.compile(r"(\d+(?:[.,]\d+)?)")
 
 
@@ -120,18 +121,28 @@ def parse_date(text: str) -> date | None:
         return None
 
 
+def find_times(text: str) -> list[tuple[int, int]]:
+    """All clock times in `text` as (hour, minute) pairs."""
+    times = []
+    for match in TIME_RE.finditer(text):
+        hour = int(match.group(1))
+        minute = int(match.group(2) or 0)
+        if hour <= 23 and minute <= 59:
+            times.append((hour, minute))
+    return times
+
+
 def parse_times(day: date, dienstbeginn: str, dauer: str) -> tuple[datetime, datetime] | None:
     """Return (start, end) for a shift, or None if there is no usable time."""
-    times = TIME_RE.findall(dienstbeginn)
+    times = find_times(dienstbeginn)
     if not times:
         return None
 
-    hour, minute = (int(part) for part in times[0])
-    start = datetime.combine(day, datetime.min.time()).replace(hour=hour, minute=minute)
+    midnight = datetime.combine(day, datetime.min.time())
+    start = midnight.replace(hour=times[0][0], minute=times[0][1])
 
     if len(times) >= 2:
-        hour, minute = (int(part) for part in times[1])
-        end = datetime.combine(day, datetime.min.time()).replace(hour=hour, minute=minute)
+        end = midnight.replace(hour=times[1][0], minute=times[1][1])
         if end <= start:  # shift running past midnight
             end += timedelta(days=1)
         return start, end
